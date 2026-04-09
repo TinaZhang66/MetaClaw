@@ -8,6 +8,7 @@ import json
 import os
 import pty
 import select
+import shutil
 import sys
 import subprocess
 import tempfile
@@ -15,13 +16,18 @@ from datetime import datetime
 from pathlib import Path
 
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+BENCH_ROOT = SCRIPT_DIR.parent
+REPO_ROOT = BENCH_ROOT.parent
+
+
 # ===================== 核心配置（改这里就行）=====================
 class cfg:
     # 日志文件路径（若已存在，自动追加 _1/_2 后缀）
-    LOG_FILE = "/home/xkaiwen/workspace/metaclaw-test/logs/metaclaw_proxy/proxy_run.log"
+    LOG_FILE = str(BENCH_ROOT / "logs" / "metaclaw_proxy" / "proxy_run.log")
 
     # metaclaw 可执行文件路径
-    METACLAW_BIN = "/home/xkaiwen/miniconda3/bin/metaclaw"
+    METACLAW_BIN = shutil.which("metaclaw")
 
     # metaclaw 启动子命令
     METACLAW_CMD = "start"
@@ -133,7 +139,11 @@ def main():
     if cfg.API_KEY_SCRIPT:
         env = load_env_from_shell(cfg.API_KEY_SCRIPT)
 
-    cmd = [cfg.METACLAW_BIN, cfg.METACLAW_CMD]
+    metaclaw_bin = cfg.METACLAW_BIN or shutil.which("metaclaw")
+    if not metaclaw_bin:
+        raise RuntimeError("未找到 metaclaw 可执行文件，请先安装 MetaClaw CLI。")
+
+    cmd = [metaclaw_bin, cfg.METACLAW_CMD]
     # 若设置了 METACLAW_CONFIG_FILE 环境变量，则传递 --config 给 metaclaw start
     config_file = os.environ.get("METACLAW_CONFIG_FILE")
     if config_file:

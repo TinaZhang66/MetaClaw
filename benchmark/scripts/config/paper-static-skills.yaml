@@ -1,7 +1,7 @@
 llm:
   api_base: ""
   api_key: ${TINKER_KEY}
-  model_id: ${TINKER_MODEL}
+  model_id: Qwen/Qwen3-8B
   provider: tinker
 mode: skills_only
 proxy:
@@ -9,19 +9,18 @@ proxy:
   port: 30000
 rl:
   enabled: false
-  model: ${TINKER_MODEL}
+  model: Qwen/Qwen3-8B
   tinker_api_key: ${TINKER_KEY}
-  evolver_api_base: ${BENCHMARK_BASE_URL}
-  evolver_api_key: ${BENCHMARK_API_KEY}
-  evolver_model: ${PRM_MODEL}
 scheduler:
   calendar:
     enabled: false
   enabled: false
 skills:
-  auto_evolve: true
+  auto_evolve: false
   dir: ${METACLAW_ROOT}/memory_data/skills
   enabled: true
   retrieval_mode: template
   task_specific_top_k: 10
   top_k: 6
+memory:
+  enabled: false

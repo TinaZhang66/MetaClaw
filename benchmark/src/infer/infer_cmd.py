@@ -217,6 +217,23 @@ def _patch_agent_workspace(
     )
 
 
+def _sync_workspace_main(
+    work_openclaw_state_dir: Path,
+    workspace_path: Path,
+) -> Path:
+    """Mirror the per-test workspace into the state dir's runtime workspace.
+
+    OpenClaw tools currently resolve paths under ``workspace-main`` during
+    benchmark runs, so keep that directory aligned with the isolated per-test
+    workspace prepared by the benchmark runner.
+    """
+    workspace_main = work_openclaw_state_dir / "workspace-main"
+    if workspace_main.exists():
+        shutil.rmtree(workspace_main)
+    shutil.copytree(workspace_path, workspace_main)
+    return workspace_main
+
+
 def _resolve_log_dir(work_openclaw_state_dir: Path, project_root: Path) -> Path:
     """Read logDir from the work copy's openclaw.json, expanding ${METACLAW_ROOT}."""
     fallback = project_root / "logs" / "llm_prompts"
@@ -848,6 +865,7 @@ async def _run_group(
     eval_dir: Path,
     eval_name: str,
     workspace_path: Path,
+    runtime_workspace_path: Path,
     gateway_port: int | None = None,
 ) -> None:
     """Run all rounds within a group serially.
@@ -941,7 +959,12 @@ async def _run_group(
                 result = {}
 
             answer_text = result.get("answer", "")
-            inline_score = _compute_inline_score(round_record, answer_text, workspace_path)
+            score_workspace = (
+                runtime_workspace_path
+                if question_type == "file_check"
+                else workspace_path
+            )
+            inline_score = _compute_inline_score(round_record, answer_text, score_workspace)
 
             result["inline_score"] = inline_score
             result_path.write_text(
@@ -1028,6 +1051,7 @@ async def _run_one_test(
         workspace_copy = _copy_workspace_for_test(workspace_src, work_dir, test_id)
         _copy_eval_scripts(eval_dir, workspace_copy)
         _patch_agent_workspace(openclaw_json_path, agent_id, workspace_copy)
+        runtime_workspace = _sync_workspace_main(work_openclaw_state_dir, workspace_copy)
 
         log_dir = _resolve_log_dir(work_openclaw_state_dir, project_root)
 
@@ -1068,6 +1092,7 @@ async def _run_one_test(
                     eval_dir=eval_dir,
                     eval_name=eval_name,
                     workspace_path=workspace_copy,
+                    runtime_workspace_path=runtime_workspace,
                     gateway_port=gateway_port,
                 )
         finally:

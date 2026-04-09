@@ -8,6 +8,7 @@ import json
 import os
 import pty
 import select
+import shutil
 import sys
 import subprocess
 import tempfile
@@ -15,23 +16,33 @@ from datetime import datetime
 from pathlib import Path
 
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+BENCH_ROOT = SCRIPT_DIR.parent
+
+
 # ===================== 核心配置（改这里就行）=====================
 class cfg:
     # 日志文件路径（若已存在，自动追加 _1/_2 后缀）
-    LOG_FILE = "/home/xkaiwen/workspace/metaclaw-test/benchmark/logs/baseline_run/bench_run.log"
+    LOG_FILE = str(BENCH_ROOT / "logs" / "baseline_run" / "bench_run.log")
 
     # metaclaw-bench 可执行文件路径
-    BENCH_BIN = "/home/xkaiwen/miniconda3/bin/metaclaw-bench"
+    BENCH_BIN = shutil.which("metaclaw-bench")
 
     # run 命令参数
-    BENCH_INPUT   = "/home/xkaiwen/workspace/metaclaw-test/benchmark/data/metaclaw-bench/all_tests.json"
-    BENCH_OUTPUT  = "/home/xkaiwen/workspace/metaclaw-test/benchmark/results"
-    BENCH_WORKERS = 15   # -w
+    BENCH_INPUT   = str(BENCH_ROOT / "data" / "metaclaw-bench-small" / "all_tests.json")
+    BENCH_OUTPUT  = str(BENCH_ROOT / "results" / "baseline")
+    BENCH_WORKERS = 1   # -w
     BENCH_COUNT   = 3    # -n
 
     # 加载 API Key 的 shell 脚本（设为 None 则跳过）
-    API_KEY_SCRIPT = "/home/xkaiwen/workspace/utils/apikey/metaclaw_cfg.sh"
+    API_KEY_SCRIPT = None
 # =================================================================
+
+
+def bench_cmd() -> list[str]:
+    if cfg.BENCH_BIN:
+        return [cfg.BENCH_BIN]
+    return [sys.executable, "-m", "src.cli"]
 
 
 def resolve_log_path(log_file: str) -> Path:
@@ -70,7 +81,7 @@ def load_env_from_shell(script_path: str) -> dict:
         os.unlink(tmp_path)
 
 
-def run_command(cmd: list, log_path: Path, env: dict = None) -> int:
+def run_command(cmd: list, log_path: Path, env: dict = None, cwd: str | None = None) -> int:
     """执行命令，通过伪终端(pty)实时输出到终端和日志文件，返回退出码。
     使用 pty 让子进程认为自己在写 TTY，保持行缓冲，数据产生即刷出。"""
     master_fd, slave_fd = pty.openpty()
@@ -79,6 +90,7 @@ def run_command(cmd: list, log_path: Path, env: dict = None) -> int:
         stdout=slave_fd,
         stderr=slave_fd,
         env=env,
+        cwd=cwd,
         close_fds=True,
     )
     os.close(slave_fd)
@@ -139,13 +151,13 @@ def main():
 
     # run
     run_cmd = [
-        cfg.BENCH_BIN, "run",
+        *bench_cmd(), "run",
         "-i", cfg.BENCH_INPUT,
         "-o", cfg.BENCH_OUTPUT,
         "-w", str(cfg.BENCH_WORKERS),
         "-n", str(cfg.BENCH_COUNT),
     ]
-    run_command(run_cmd, log_path, env=env)
+    run_command(run_cmd, log_path, env=env, cwd=str(BENCH_ROOT))
 
     end = datetime.now()
 

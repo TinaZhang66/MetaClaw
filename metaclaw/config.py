@@ -150,7 +150,7 @@ class MetaClawConfig:
     # ------------------------------------------------------------------ #
     # LLM for skills_only forwarding                                     #
     # ------------------------------------------------------------------ #
-    # provider: "custom" (OpenAI-compat API) | "anthropic" | "openai-codex" | "gemini"
+    # provider: "custom" (OpenAI-compat API) | "tinker" | "anthropic" | "openai-codex" | "gemini"
     llm_provider: str = "custom"
     # auth_method: "api_key" (direct API call) | "oauth_token" (CLI subprocess)
     llm_auth_method: str = "api_key"

@@ -26,28 +26,39 @@ from datetime import datetime
 from pathlib import Path
 
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+BENCH_ROOT = SCRIPT_DIR.parent
+REPO_ROOT = BENCH_ROOT.parent
+
+
 # ===================== 核心配置（改这里就行）=====================
 class cfg:
     # 日志文件路径（若已存在，自动追加 _1/_2 后缀）
-    LOG_FILE = "/home/xkaiwen/workspace/metaclaw-test/benchmark/logs/skills_only_run/bench_run.log"
+    LOG_FILE = str(BENCH_ROOT / "logs" / "skills_only_run" / "bench_run.log")
 
     # metaclaw-bench 可执行文件路径
-    BENCH_BIN = "/home/xkaiwen/miniconda3/bin/metaclaw-bench"
+    BENCH_BIN = shutil.which("metaclaw-bench")
 
     # run 命令参数
-    BENCH_INPUT   = "/home/xkaiwen/workspace/metaclaw-test/benchmark/data/metaclaw-bench/all_tests_metaclaw.json"
-    BENCH_OUTPUT  = "/home/xkaiwen/workspace/metaclaw-test/benchmark/results"
+    BENCH_INPUT   = str(BENCH_ROOT / "data" / "metaclaw-bench-small" / "all_tests_metaclaw.json")
+    BENCH_OUTPUT  = str(BENCH_ROOT / "results" / "skills_only")
     BENCH_COUNT   = 3    # -n
 
     # 加载 API Key 的 shell 脚本（设为 None 则跳过）
-    API_KEY_SCRIPT = "/home/xkaiwen/workspace/utils/apikey/metaclaw_cfg.sh"
+    API_KEY_SCRIPT = None
 
-    PROXY_SCRIPT = "/home/xkaiwen/workspace/metaclaw-test/benchmark/scripts/proxy_run.py"
-    PROXY_CONFIG = "/home/xkaiwen/workspace/metaclaw-test/benchmark/scripts/config/skills-only.yaml"
+    PROXY_SCRIPT = str(SCRIPT_DIR / "proxy_run.py")
+    PROXY_CONFIG = str(SCRIPT_DIR / "config" / "skills-only.yaml")
 
     # 原始 skill 目录（每次运行前复制到临时目录，保证初始状态一致）
-    ORIGINAL_SKILL_DIR = "/home/xkaiwen/workspace/metaclaw-test/memory_data/skills"
+    ORIGINAL_SKILL_DIR = str(REPO_ROOT / "memory_data" / "skills")
 # =================================================================
+
+
+def bench_cmd() -> list[str]:
+    if cfg.BENCH_BIN:
+        return [cfg.BENCH_BIN]
+    return [sys.executable, "-m", "src.cli"]
 
 
 def find_free_port() -> int:
@@ -178,7 +189,7 @@ def stop_proxy(proc: subprocess.Popen):
     print("[proxy] proxy 已停止")
 
 
-def run_command(cmd: list, log_path: Path, env: dict = None) -> int:
+def run_command(cmd: list, log_path: Path, env: dict = None, cwd: str | None = None) -> int:
     """执行命令，通过伪终端(pty)实时输出到终端和日志文件，返回退出码。
     使用 pty 让子进程认为自己在写 TTY，保持行缓冲，数据产生即刷出。"""
     master_fd, slave_fd = pty.openpty()
@@ -187,6 +198,7 @@ def run_command(cmd: list, log_path: Path, env: dict = None) -> int:
         stdout=slave_fd,
         stderr=slave_fd,
         env=env,
+        cwd=cwd,
         close_fds=True,
     )
     os.close(slave_fd)
@@ -267,13 +279,13 @@ def main():
     try:
         # run（worker 强制为 1）
         run_cmd = [
-            cfg.BENCH_BIN, "run",
+            *bench_cmd(), "run",
             "-i", cfg.BENCH_INPUT,
             "-o", cfg.BENCH_OUTPUT,
             "-w", "1",
             "-n", str(cfg.BENCH_COUNT),
         ]
-        run_command(run_cmd, log_path, env=bench_env)
+        run_command(run_cmd, log_path, env=bench_env, cwd=str(BENCH_ROOT))
 
     finally:
         # 无论成功还是异常，都确保 proxy 被终止，并清理临时文件

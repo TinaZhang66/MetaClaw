@@ -1234,7 +1234,9 @@ class MetaClawAPIServer:
             forward_body["model"] = self._served_model
         forward_body["messages"] = _ensure_reasoning_content(messages)
 
-        if self.config.mode == "skills_only":
+        if self.config.mode == "skills_only" and self.config.llm_provider == "tinker":
+            output = await self._forward_to_tinker(forward_body)
+        elif self.config.mode == "skills_only":
             output = await self._forward_to_llm(forward_body, session_id=session_id)
         else:
             output = await self._forward_to_tinker(forward_body)

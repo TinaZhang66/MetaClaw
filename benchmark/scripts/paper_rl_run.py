@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-rl_run.py — 运行 metaclaw-bench (RL mode)，每 N 个场景触发一次 RL 训练。
+paper_rl_run.py — paper-aligned RL benchmark runner on the full 30-day dataset.
 
-流程：
-  1. 将 rl.yaml（环境变量替换后）写入 ~/.metaclaw/config.yaml
-  2. 后台启动 PROXY_SCRIPT (metaclaw start)，等待就绪
-  3. 执行 metaclaw-bench run --scene-per-train N
-  4. 全部流程完成后终止 proxy 进程组
+Compared with rl_run.py:
+  1. Uses paper-rl.yaml
+  2. Runs in rl mode with background RL updates
+  3. Does NOT call --scene-per-train; training is handled by the proxy itself
+  4. Uses the full metaclaw-bench dataset to stay closer to the paper setting
 """
 
 import json
@@ -31,31 +31,16 @@ BENCH_ROOT = SCRIPT_DIR.parent
 REPO_ROOT = BENCH_ROOT.parent
 
 
-# ===================== 核心配置（改这里就行）=====================
 class cfg:
-    # 日志文件路径（若已存在，自动追加 _1/_2 后缀）
-    LOG_FILE = str(BENCH_ROOT / "logs" / "rl_run" / "bench_run.log")
-
-    # metaclaw-bench 可执行文件路径
+    LOG_FILE = str(BENCH_ROOT / "logs" / "paper_rl_full_run" / "bench_run.log")
     BENCH_BIN = shutil.which("metaclaw-bench")
-
-    # run 命令参数
-    BENCH_INPUT   = str(BENCH_ROOT / "data" / "metaclaw-bench-small" / "all_tests_metaclaw.json")
-    BENCH_OUTPUT  = str(BENCH_ROOT / "results" / "rl")
-    BENCH_COUNT   = 3    # -n (retry)
-
-    # 每多少个场景触发一次 RL 训练（设为 1 = 每个 day 训练一次）
-    SCENE_PER_TRAIN = 5
-
-    # 加载 API Key 的 shell 脚本（设为 None 则跳过）
+    BENCH_INPUT = str(BENCH_ROOT / "data" / "metaclaw-bench" / "all_tests_metaclaw.json")
+    BENCH_OUTPUT = str(BENCH_ROOT / "results" / "paper_rl_full")
+    BENCH_COUNT = 3
     API_KEY_SCRIPT = None
-
     PROXY_SCRIPT = str(SCRIPT_DIR / "proxy_run.py")
-    PROXY_CONFIG = str(SCRIPT_DIR / "config" / "rl.yaml")
-
-    # 原始 skill 目录（每次运行前复制到临时目录，保证初始状态一致）
+    PROXY_CONFIG = str(SCRIPT_DIR / "config" / "paper-rl.yaml")
     ORIGINAL_SKILL_DIR = str(REPO_ROOT / "memory_data" / "skills")
-# =================================================================
 
 
 def bench_cmd() -> list[str]:
@@ -65,14 +50,12 @@ def bench_cmd() -> list[str]:
 
 
 def find_free_port() -> int:
-    """让操作系统分配一个空闲端口并返回。"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("", 0))
         return s.getsockname()[1]
 
 
 def resolve_log_path(log_file: str) -> Path:
-    """若目标路径已存在，依次尝试 _1/_2/... 后缀直到找到空位。"""
     p = Path(log_file)
     p.parent.mkdir(parents=True, exist_ok=True)
     if not p.exists():
@@ -87,8 +70,6 @@ def resolve_log_path(log_file: str) -> Path:
 
 
 def load_env_from_shell(script_path: str) -> dict:
-    """source shell 脚本后，将 os.environ 以 JSON 写入临时文件读回，
-    完全隔离 shell 脚本自身的 stdout 输出，避免 JSON 解析污染。"""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         tmp_path = f.name
     try:
@@ -97,7 +78,7 @@ def load_env_from_shell(script_path: str) -> dict:
              f"source {script_path} && "
              "python3 -c 'import os,json; json.dump(dict(os.environ),open(os.environ[\"__TMP_ENV\"],\"w\"))'"],
             env={**os.environ, "__TMP_ENV": tmp_path},
-            text=True
+            text=True,
         )
         if result.returncode != 0:
             raise RuntimeError(f"加载 env 脚本失败：{script_path}")
@@ -108,8 +89,6 @@ def load_env_from_shell(script_path: str) -> dict:
 
 
 def write_proxy_config(env: dict, temp_skill_dir: str, port: int) -> str:
-    """读取 PROXY_CONFIG yaml，将 ${VAR} 替换为 env 中对应值，
-    覆写 skills.dir 和 proxy.port，写入临时配置文件并返回其路径。"""
     import yaml as _yaml
 
     with open(cfg.PROXY_CONFIG, encoding="utf-8") as f:
@@ -122,9 +101,8 @@ def write_proxy_config(env: dict, temp_skill_dir: str, port: int) -> str:
             print(f"[config] 警告：环境变量 {var} 未设置，替换为空字符串")
         return val
 
-    content = re.sub(r'\$\{(\w+)\}', replace, content)
+    content = re.sub(r"\$\{(\w+)\}", replace, content)
 
-    # 解析后覆写 skills.dir 和 proxy.port
     data = _yaml.safe_load(content) or {}
     data.setdefault("skills", {})["dir"] = temp_skill_dir
     data.setdefault("proxy", {})["port"] = port
@@ -140,11 +118,13 @@ def write_proxy_config(env: dict, temp_skill_dir: str, port: int) -> str:
 
 
 def start_proxy(env: dict, config_path: str, port: int) -> subprocess.Popen:
-    """后台启动 PROXY_SCRIPT（stdout/stderr 丢弃，proxy 有自己的日志），
-    轮询 /healthz 确认就绪后返回进程对象。"""
-    print(f"[proxy] 正在启动 proxy (RL mode, port={port})...")
+    print(f"[proxy] 正在启动 proxy (paper RL, port={port})...")
     proxy_env = dict(env) if env else dict(os.environ)
     proxy_env["METACLAW_CONFIG_FILE"] = config_path
+    # Benchmark runs start their own per-work-copy OpenClaw gateways, so
+    # touching the user's global OpenClaw profile only creates cross-run
+    # interference when multiple paper_* runners execute in parallel.
+    proxy_env["METACLAW_SKIP_OPENCLAW_AUTOCONFIG"] = "1"
     proc = subprocess.Popen(
         [sys.executable, cfg.PROXY_SCRIPT],
         stdout=subprocess.DEVNULL,
@@ -172,7 +152,6 @@ def start_proxy(env: dict, config_path: str, port: int) -> subprocess.Popen:
 
 
 def stop_proxy(proc: subprocess.Popen):
-    """向 proxy 进程组发送 SIGTERM，超时后强制 SIGKILL。"""
     if proc.poll() is not None:
         return
     print("[proxy] 正在停止 proxy...")
@@ -193,7 +172,6 @@ def stop_proxy(proc: subprocess.Popen):
 
 
 def run_command(cmd: list, log_path: Path, env: dict = None, cwd: str | None = None) -> int:
-    """执行命令，通过伪终端(pty)实时输出到终端和日志文件，返回退出码。"""
     master_fd, slave_fd = pty.openpty()
     proc = subprocess.Popen(
         cmd,
@@ -229,7 +207,6 @@ def run_command(cmd: list, log_path: Path, env: dict = None, cwd: str | None = N
 
 
 def append_timing(log_path: Path, start: datetime, end: datetime):
-    """将计时结果追加到日志并打印到终端。"""
     elapsed = (end - start).total_seconds()
     lines = [
         "",
@@ -257,47 +234,46 @@ def main():
     if cfg.API_KEY_SCRIPT:
         env = load_env_from_shell(cfg.API_KEY_SCRIPT)
 
-    # 第零步：分配空闲端口
+    base_env = dict(env) if env else dict(os.environ)
+    if not base_env.get("TINKER_KEY"):
+        base_env["TINKER_KEY"] = (
+            base_env.get("TINKER_API_KEY")
+            or base_env.get("SKILLS_ONLY_TINKER_API_KEY")
+            or ""
+        )
+    base_env.setdefault("METACLAW_ROOT", str(REPO_ROOT))
+    base_env.setdefault("BENCHMARK_MODEL", "Qwen3-8B")
+    base_env.setdefault("PRM_MODEL", "gpt-5.2")
+
     port = find_free_port()
     print(f"[port] 自动分配端口: {port}")
 
-    # 第一步：将 ORIGINAL_SKILL_DIR 复制到临时目录，保证每次运行初始状态一致
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    temp_skill_dir = str(Path(tempfile.gettempdir()) / f"metaclaw_skills_{ts}")
+    temp_skill_dir = str(Path(tempfile.gettempdir()) / f"metaclaw_paper_rl_skills_{ts}")
     shutil.copytree(cfg.ORIGINAL_SKILL_DIR, temp_skill_dir)
     print(f"[skills] 已复制初始 skill 目录到: {temp_skill_dir}")
 
-    # 第二步：生成临时配置文件（skills.dir 指向临时目录，proxy.port 为动态端口）
-    tmp_config_path = write_proxy_config(env or os.environ.copy(), temp_skill_dir, port)
+    tmp_config_path = write_proxy_config(base_env, temp_skill_dir, port)
+    proxy_proc = start_proxy(base_env, tmp_config_path, port)
 
-    # 启动 proxy，等待就绪
-    proxy_proc = start_proxy(env or os.environ.copy(), tmp_config_path, port)
-
-    # 将动态端口注入 metaclaw-bench 的环境变量，供 openclaw 配置解析
-    bench_env = dict(env) if env else dict(os.environ)
+    bench_env = dict(base_env)
     bench_env["METACLAW_PROXY_PORT"] = str(port)
 
     start = datetime.now()
     try:
-        # run（worker 强制为 1，启用 scene-per-train）
         run_cmd = [
             *bench_cmd(), "run",
             "-i", cfg.BENCH_INPUT,
             "-o", cfg.BENCH_OUTPUT,
             "-w", "1",
             "-n", str(cfg.BENCH_COUNT),
-            "--scene-per-train", str(cfg.SCENE_PER_TRAIN),
         ]
         run_command(run_cmd, log_path, env=bench_env, cwd=str(BENCH_ROOT))
-
     finally:
-        # 无论成功还是异常，都确保 proxy 被终止，并清理临时文件
         stop_proxy(proxy_proc)
-        # 清理临时 skill 目录
         if os.path.isdir(temp_skill_dir):
             shutil.rmtree(temp_skill_dir)
             print(f"[skills] 已清理临时 skill 目录: {temp_skill_dir}")
-        # 清理临时配置文件
         if os.path.isfile(tmp_config_path):
             os.unlink(tmp_config_path)
             print(f"[config] 已清理临时配置文件: {tmp_config_path}")

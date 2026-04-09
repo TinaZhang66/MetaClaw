@@ -152,9 +152,35 @@ class MetaClawLauncher:
             except Exception as e:
                 logger.warning("[Launcher] MemoryManager init failed: %s", e)
 
+        sampling_client = None
+        if cfg.llm_provider == "tinker":
+            try:
+                import tinker
+
+                # Keep skills_only on the same known-good initialization path
+                # as the RL trainer: populate the standard Tinker env vars,
+                # then create an initial sampling client from base weights.
+                tinker_api_key = cfg.llm_api_key or os.environ.get("TINKER_API_KEY", "")
+                tinker_base_url = cfg.llm_api_base or os.environ.get("TINKER_BASE_URL", "")
+                if tinker_api_key:
+                    os.environ["TINKER_API_KEY"] = tinker_api_key
+                if tinker_base_url:
+                    os.environ["TINKER_BASE_URL"] = tinker_base_url
+
+                logger.info("[Launcher] skills_only+tinker: connecting to Tinker service …")
+                service_client = tinker.ServiceClient()
+                training_client = await service_client.create_lora_training_client_async(
+                    base_model=cfg.model_name,
+                    rank=cfg.lora_rank,
+                )
+                sampling_client = await training_client.save_weights_and_get_sampling_client_async()
+                logger.info("[Launcher] skills_only+tinker: sampling client ready")
+            except Exception as e:
+                logger.warning("[Launcher] skills_only+tinker init failed: %s", e)
+
         worker = AsyncRolloutWorker(
             config=cfg,
-            sampling_client=None,
+            sampling_client=sampling_client,
             skill_manager=skill_manager,
             prm_scorer=prm_scorer,
             skill_evolver=skill_evolver,
@@ -343,12 +369,31 @@ class MetaClawLauncher:
         """
         force = cfg.mode == "skills_only"
         _set = (lambda k, v: os.environ.__setitem__(k, v)) if force else os.environ.setdefault
-        if cfg.evolver_api_base:
-            _set("OPENAI_BASE_URL", cfg.evolver_api_base)
-        if cfg.evolver_api_key:
-            _set("OPENAI_API_KEY", cfg.evolver_api_key)
-        if cfg.evolver_model_id:
-            _set("SKILL_EVOLVER_MODEL", cfg.evolver_model_id)
+        evolver_base = cfg.evolver_api_base or cfg.llm_api_base
+        evolver_key = cfg.evolver_api_key or cfg.llm_api_key
+        evolver_model = cfg.evolver_model_id or cfg.llm_model_id
+
+        if cfg.llm_provider == "tinker":
+            # Keep the evolver on the same OpenAI-compatible endpoint family
+            # as skills_only forwarding when the config relies on env-provided
+            # Tinker credentials.
+            evolver_base = evolver_base or os.environ.get("TINKER_BASE_URL", "") or os.environ.get("MINT_BASE_URL", "")
+            evolver_key = evolver_key or os.environ.get("TINKER_API_KEY", "") or os.environ.get("MINT_API_KEY", "")
+
+        if evolver_base:
+            _set("OPENAI_BASE_URL", evolver_base)
+        elif force:
+            os.environ.pop("OPENAI_BASE_URL", None)
+
+        if evolver_key:
+            _set("OPENAI_API_KEY", evolver_key)
+        elif force:
+            os.environ.pop("OPENAI_API_KEY", None)
+
+        if evolver_model:
+            _set("SKILL_EVOLVER_MODEL", evolver_model)
+        elif force:
+            os.environ.pop("SKILL_EVOLVER_MODEL", None)
         elif not os.environ.get("SKILL_EVOLVER_MODEL"):
             logger.warning(
                 "[Launcher] No evolver model configured (rl.evolver_model and llm.model_id "
@@ -364,6 +409,18 @@ class MetaClawLauncher:
 
     def _configure_openclaw(self, cfg):
         """Auto-configure OpenClaw to use the MetaClaw proxy."""
+        if os.environ.get("METACLAW_SKIP_OPENCLAW_AUTOCONFIG", "").lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            logger.info(
+                "[Launcher] Skipping global OpenClaw auto-config because "
+                "METACLAW_SKIP_OPENCLAW_AUTOCONFIG is enabled"
+            )
+            return
+
         model_id = cfg.llm_model_id or cfg.served_model_name or "metaclaw-model"
         provider_json = json.dumps({
             "api": "openai-completions",
