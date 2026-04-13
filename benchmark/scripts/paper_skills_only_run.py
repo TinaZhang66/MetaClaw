@@ -240,6 +240,10 @@ def main():
             or base_env.get("SKILLS_ONLY_TINKER_API_KEY")
             or ""
         )
+    if not base_env.get("BENCHMARK_BASE_URL"):
+        base_env["BENCHMARK_BASE_URL"] = base_env.get("OPENAI_BASE_URL", "")
+    if not base_env.get("BENCHMARK_API_KEY"):
+        base_env["BENCHMARK_API_KEY"] = base_env.get("OPENAI_API_KEY", "")
     base_env.setdefault("METACLAW_ROOT", str(REPO_ROOT))
     if not base_env.get("BENCHMARK_MODEL"):
         base_env["BENCHMARK_MODEL"] = (

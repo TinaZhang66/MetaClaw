@@ -263,7 +263,7 @@ def main():
             *bench_cmd(), "run",
             "-i", cfg.BENCH_INPUT,
             "-o", cfg.BENCH_OUTPUT,
-            "-w", "1",
+            "-w", "5",
             "-n", str(cfg.BENCH_COUNT),
         ]
         run_command(run_cmd, log_path, env=bench_env, cwd=str(BENCH_ROOT))

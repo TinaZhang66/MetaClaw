@@ -181,6 +181,7 @@ class ConfigStore:
         proxy = data.get("proxy", {})
         skills = data.get("skills", {})
         rl = data.get("rl", {})
+        opd = data.get("opd", {})
         memory = data.get("memory", {})
         sched = data.get("scheduler", {})
         sched_cal = sched.get("calendar", {})
@@ -260,10 +261,17 @@ class ConfigStore:
             skill_evolution_history_path=str(Path(skills_dir) / "evolution_history.jsonl"),
             # RL training
             model_name=rl.get("model") or llm.get("model_id") or "Qwen/Qwen3-4B",
+            loss_fn=str(rl.get("loss_fn", "importance_sampling")),
             lora_rank=int(rl.get("lora_rank", 32)),
             batch_size=int(rl.get("batch_size", 4)),
             resume_from_ckpt=str(rl.get("resume_from_ckpt", "") or ""),
             manual_train_trigger=bool(rl.get("manual_train_trigger", False)),
+            # OPD
+            use_opd=_yaml_bool(opd.get("enabled"), False),
+            teacher_url=str(opd.get("teacher_url", "")),
+            teacher_model=str(opd.get("teacher_model", "")),
+            teacher_api_key=str(opd.get("teacher_api_key", "")),
+            kl_penalty_coef=float(opd.get("kl_penalty_coef", 1.0)),
             # PRM (only meaningful in rl mode)
             use_prm=bool(rl.get("prm_url")) and rl_enabled,
             prm_url=rl.get("prm_url", "https://api.openai.com/v1"),
@@ -344,9 +352,16 @@ class ConfigStore:
         if rl.get("enabled"):
             lines += [
                 f"rl.model:        {rl.get('model', '?')}",
+                f"rl.loss_fn:      {rl.get('loss_fn', 'importance_sampling')}",
                 f"rl.prm_url:      {rl.get('prm_url', '?')}",
                 f"rl.evolver_model:{rl.get('evolver_model', '?')}",
                 f"rl.resume_ckpt:  {rl.get('resume_from_ckpt', '')}",
+            ]
+        if opd.get("enabled"):
+            lines += [
+                f"opd.teacher_url: {opd.get('teacher_url', '?')}",
+                f"opd.teacher_model:{opd.get('teacher_model', '?')}",
+                f"opd.kl_coef:     {opd.get('kl_penalty_coef', 1.0)}",
             ]
         lines += [
             f"memory.enabled:  {memory.get('enabled', False)}",

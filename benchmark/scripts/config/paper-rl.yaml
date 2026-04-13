@@ -14,7 +14,7 @@ rl:
   prm_url: ${OPENAI_BASE_URL}
   prm_model: ${PRM_MODEL}
   prm_api_key: ${OPENAI_API_KEY}
-  manual_train_trigger: false
+  manual_train_trigger: true
   batch_size: 8
   lora_rank: 32
   evolver_api_base: ${OPENAI_BASE_URL}

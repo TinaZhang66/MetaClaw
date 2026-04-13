@@ -118,6 +118,15 @@ def _prepare_work_copy(
     if openclaw_json_path.exists():
         config = json.loads(openclaw_json_path.read_text(encoding="utf-8"))
 
+        # Some benchmark configs were created before llm.idleTimeoutSeconds was
+        # added, which can cause long-running model calls to fail after the
+        # gateway's shorter default idle timeout. Ensure every isolated work
+        # copy carries a benchmark-friendly idle timeout unless explicitly set.
+        agents_cfg = config.setdefault("agents", {})
+        defaults_cfg = agents_cfg.setdefault("defaults", {})
+        llm_cfg = defaults_cfg.setdefault("llm", {})
+        llm_cfg.setdefault("idleTimeoutSeconds", 900)
+
         # Remap openclaw_state paths (agentDir etc.)
         replacements: list[tuple[str, str]] = []
         replacements.append((
@@ -411,10 +420,15 @@ async def _run_openclaw_agent(
     }
     if gateway_port is not None:
         env["OPENCLAW_GATEWAY_PORT"] = str(gateway_port)
-    proc = await asyncio.create_subprocess_exec(
+    cmd = [
         "openclaw", "agent",
         "--session-id", session_id,
         "--message", message,
+    ]
+    if agent_id:
+        cmd.extend(["--agent", agent_id])
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
         cwd=str(project_root),
         env=env,
         stdout=asyncio.subprocess.PIPE,
@@ -807,6 +821,7 @@ async def _run_question(
             openclaw_config_path=openclaw_config_path,
             openclaw_state_dir=openclaw_state_dir,
             project_root=project_root,
+            agent_id=agent_id,
             gateway_port=gateway_port,
         )
         if rc == 0:
@@ -949,6 +964,7 @@ async def _run_group(
                 project_root=project_root,
                 gateway_port=gateway_port,
                 retry=retry,
+                agent_id=agent_id,
                 question_type=question_type,
             )
 
@@ -959,12 +975,7 @@ async def _run_group(
                 result = {}
 
             answer_text = result.get("answer", "")
-            score_workspace = (
-                runtime_workspace_path
-                if question_type == "file_check"
-                else workspace_path
-            )
-            inline_score = _compute_inline_score(round_record, answer_text, score_workspace)
+            inline_score = _compute_inline_score(round_record, answer_text, workspace_path)
 
             result["inline_score"] = inline_score
             result_path.write_text(
@@ -997,6 +1008,7 @@ async def _run_group(
             openclaw_config_path=openclaw_config_path,
             openclaw_state_dir=work_openclaw_state_dir,
             project_root=project_root,
+            agent_id=agent_id,
             gateway_port=gateway_port,
         )
         feedback_marker.parent.mkdir(parents=True, exist_ok=True)

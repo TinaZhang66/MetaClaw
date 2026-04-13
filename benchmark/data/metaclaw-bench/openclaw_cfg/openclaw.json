@@ -34,6 +34,9 @@
       "model": {
         "primary": "metaclaw-bench/${BENCHMARK_MODEL}"
       },
+      "llm": {
+        "idleTimeoutSeconds": 900
+      },
       "timeoutSeconds": 6000,
       "compaction": {
         "mode": "safeguard"

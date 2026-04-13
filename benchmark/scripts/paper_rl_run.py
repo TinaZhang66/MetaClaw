@@ -4,8 +4,8 @@ paper_rl_run.py — paper-aligned RL benchmark runner on the full 30-day dataset
 
 Compared with rl_run.py:
   1. Uses paper-rl.yaml
-  2. Runs in rl mode with background RL updates
-  3. Does NOT call --scene-per-train; training is handled by the proxy itself
+  2. Runs in rl mode with explicit scene-per-train updates
+  3. Calls --scene-per-train so benchmark drives train-step triggering
   4. Uses the full metaclaw-bench dataset to stay closer to the paper setting
 """
 
@@ -37,6 +37,7 @@ class cfg:
     BENCH_INPUT = str(BENCH_ROOT / "data" / "metaclaw-bench" / "all_tests_metaclaw.json")
     BENCH_OUTPUT = str(BENCH_ROOT / "results" / "paper_rl_full")
     BENCH_COUNT = 3
+    SCENE_PER_TRAIN = 5
     API_KEY_SCRIPT = None
     PROXY_SCRIPT = str(SCRIPT_DIR / "proxy_run.py")
     PROXY_CONFIG = str(SCRIPT_DIR / "config" / "paper-rl.yaml")
@@ -241,6 +242,10 @@ def main():
             or base_env.get("SKILLS_ONLY_TINKER_API_KEY")
             or ""
         )
+    if not base_env.get("BENCHMARK_BASE_URL"):
+        base_env["BENCHMARK_BASE_URL"] = base_env.get("OPENAI_BASE_URL", "")
+    if not base_env.get("BENCHMARK_API_KEY"):
+        base_env["BENCHMARK_API_KEY"] = base_env.get("OPENAI_API_KEY", "")
     base_env.setdefault("METACLAW_ROOT", str(REPO_ROOT))
     base_env.setdefault("BENCHMARK_MODEL", "Qwen3-8B")
     base_env.setdefault("PRM_MODEL", "gpt-5.2")
@@ -267,6 +272,7 @@ def main():
             "-o", cfg.BENCH_OUTPUT,
             "-w", "1",
             "-n", str(cfg.BENCH_COUNT),
+            "--scene-per-train", str(cfg.SCENE_PER_TRAIN),
         ]
         run_command(run_cmd, log_path, env=bench_env, cwd=str(BENCH_ROOT))
     finally:
