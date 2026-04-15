@@ -250,6 +250,8 @@ class ConfigStore:
             proxy_port=proxy.get("port", 30000),
             proxy_host=proxy.get("host", "0.0.0.0"),
             served_model_name=llm.get("model_id") or "metaclaw-model",
+            # Context window
+            max_context_tokens=int(data.get("max_context_tokens", 20000)),
             # Skills
             use_skills=bool(skills.get("enabled", True)),
             skills_dir=skills_dir,
