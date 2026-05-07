@@ -2242,13 +2242,14 @@ class MetaClawAPIServer:
                 teacher_tasks.pop(turn_num, None)
 
             self._safe_create_task(
-                self._submit_turn_sample(turn_data, session_id, prm_result, teacher_logprobs)
+                self._submit_turn_sample(turn_data, session_id, turn_num, prm_result, teacher_logprobs)
             )
 
     async def _submit_turn_sample(
         self,
         turn_data: dict[str, Any],
         session_id: str,
+        turn_num: int,
         prm_result: Optional[dict],
         teacher_logprobs: Optional[list[float]] = None,
     ):
@@ -2270,7 +2271,7 @@ class MetaClawAPIServer:
         loss_mask = [0] * len(response_ids) if exclude else [1] * len(response_ids)
         sample = ConversationSample(
             session_id=session_id,
-            turn_num=self._turn_counts.get(session_id, 0),
+            turn_num=turn_num,
             prompt_tokens=prompt_ids,
             response_tokens=response_ids,
             response_logprobs=turn_data["response_logprobs"],

@@ -99,6 +99,9 @@ def calculate_multichoice_metrics(
     if answer is None or not ground:
         return 0, {}
 
+    if q_num <= 0:
+        return 0, {}
+
     tp = len(answer & ground)
     fp = len(answer - ground)
     fn = len(ground - answer)

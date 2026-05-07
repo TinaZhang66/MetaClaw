@@ -1234,16 +1234,17 @@ async def _run_one_all_tests(
                 outer_semaphore=outer_semaphore,
                 query_reader=query_reader,
             )
-            # Skip memory ingest and RL training after the last scene
+            # RL training trigger: fire at every scene_per_train boundary,
+            # including when the last scene coincides with a boundary.
+            if scene_per_train is not None and scene_per_train > 0 and i % scene_per_train == 0:
+                await asyncio.to_thread(_trigger_train_step)
+            # Skip memory ingest after the last scene
             # — no more scenes to benefit from the updated state.
             if i == total_scenes:
                 break
             # Memory ingest after each test scene (except last)
             if memory:
                 await asyncio.to_thread(_trigger_memory_ingest, memory_proxy_port)
-            # RL training trigger (except last)
-            if scene_per_train is not None and scene_per_train > 0 and i % scene_per_train == 0:
-                await asyncio.to_thread(_trigger_train_step)
     else:
         # Original concurrent execution.
         tasks = [

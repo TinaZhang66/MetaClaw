@@ -625,6 +625,8 @@ class MetaClawTrainer:
             finally:
                 self.rollout_worker.resume_submission()
 
+            await self._maybe_evolve_skills(batch)
+
             if self._scheduler is not None:
                 self._scheduler.notify_trainer_finished()
 
