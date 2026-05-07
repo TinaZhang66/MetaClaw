@@ -188,33 +188,85 @@ def build_report():
     add_para(doc,
         "Each day in all_tests.json carries two fields: arc (letter A–F) and "
         "preference_tags (list of active rules). Together they define the cumulative "
-        "difficulty curve:")
+        "difficulty curve across 30 days. The full MetaClaw-bench dataset contains six "
+        "arcs of five days each, giving a total of 30 independent evaluation sessions:")
 
     doc.add_paragraph()
     add_table(doc,
-        headers=["Arc", "Days (small)", "Active Rules", "Design Intent"],
+        headers=["Arc", "Days", "Active Rules", "Design Intent"],
         rows=[
-            ("A", "Day 01–02", "P1",          "Introduce P1; cross-domain transfer test"),
-            ("B", "Day 03–04", "P1 + P2",     "Introduce P2; joint P1+P2 validation"),
-            ("C", "Day 05–06", "P1 + P2 + P3","Introduce P3; three-rule comprehensive"),
-            ("D", "Day 07–08", "P1–P4",       "Introduce P4; four-rule comprehensive"),
-            ("E", "Day 09–10", "P1–P5",       "Introduce P5; full five-rule test"),
-            ("F", "Day 11–12", "P1–P5",       "Zero-hint final exam; hardest scenarios"),
+            ("A", "Day 01–05", "P1",           "Introduce P1 (ISO 8601); five-domain cross-transfer generalization"),
+            ("B", "Day 06–10", "P1 + P2",      "Introduce P2 (file naming); joint P1+P2 validation across domains"),
+            ("C", "Day 11–15", "P1 + P2 + P3", "Introduce P3 (metadata); three file-type variants (MD, JSON, Python)"),
+            ("D", "Day 16–20", "P1–P4",        "Introduce P4 (backup discipline); four-rule synthesis"),
+            ("E", "Day 21–25", "P1–P5",        "Introduce P5 (done.log); full five-rule combined test"),
+            ("F", "Day 26–30", "P1–P5",        "Zero-hint final exam; hardest tasks across all domains"),
         ],
-        col_widths=[0.5, 1.3, 1.6, 3.3],
+        col_widths=[0.5, 1.2, 1.7, 3.3],
     )
     doc.add_paragraph()
 
-    set_heading(doc, "3.2  The Two-Day Pattern Inside Each Arc", 2)
+    set_heading(doc, "3.2  The Five-Day Pattern Inside Each Arc", 2)
 
-    add_para(doc, "Every arc follows a consistent two-day pattern:")
+    add_para(doc,
+        "Every arc follows a consistent five-day internal progression. Each arc "
+        "introduces one new preference and then consolidates it across four additional "
+        "days of increasing complexity:")
 
-    add_bullet(doc, "Day N  (arc opening) — \"First Encounter\": A new rule is introduced "
-               "implicitly. The task does not mention the rule. The agent fails and receives "
-               "corrective feedback that reveals the rule for the first time.")
-    add_bullet(doc, "Day N+1 (arc closing) — \"Comprehensive Test\": The same domain or a "
-               "different domain is used, but now the agent is expected to follow all rules "
-               "introduced so far without any hints.")
+    add_bullet(doc, "Day 1 of arc — \"First Encounter\": A new rule is introduced implicitly. "
+               "The task does not mention the rule. The agent fails and receives corrective "
+               "feedback that reveals the rule for the first time.")
+    add_bullet(doc, "Day 2 of arc — \"Consolidation\": The new rule is tested in a different "
+               "domain or file type. Feedback still references the rule if violated, but "
+               "no longer explains it from scratch.")
+    add_bullet(doc, "Day 3 of arc — \"Cross-Domain Transfer\": The new rule is applied in a "
+               "third domain (e.g., code engineering, data processing). Confirms transfer "
+               "beyond the introduction context.")
+    add_bullet(doc, "Day 4 of arc — \"Combined Validation\": All rules active so far are "
+               "tested simultaneously in a project-management or multi-file scenario.")
+    add_bullet(doc, "Day 5 of arc — \"Full Generalization\": Sprint wrap-up or comprehensive "
+               "review scenario. Agent must apply all rules correctly with minimal hints. "
+               "Feeds directly into Arc F's zero-hint baseline.")
+
+    add_para(doc, "Arc-by-arc breakdown:", bold=True)
+
+    add_table(doc,
+        headers=["Day", "Arc", "Scenario Description", "Focus"],
+        rows=[
+            ("01", "A", "Sprint 7 start — standup notes organization",         "P1 first introduction"),
+            ("02", "A", "Sprint 7 milestone updates and progress report",       "P1 consolidation"),
+            ("03", "A", "API log analysis and data consolidation",              "P1 cross-domain transfer"),
+            ("04", "A", "API documentation and code engineering",               "P1 in code context"),
+            ("05", "A", "Sprint 7 wrap-up and comprehensive review",            "P1 full generalization"),
+            ("06", "B", "Sprint 8 start — code engineering tasks",              "P2 first introduction"),
+            ("07", "B", "Documentation writing tasks",                          "P2 consolidation"),
+            ("08", "B", "Data processing tasks",                                "P2 cross-domain transfer"),
+            ("09", "B", "Project management tasks",                             "P1 + P2 combined test"),
+            ("10", "B", "Sprint 8 Week 1 wrap-up, comprehensive review",        "P1 + P2 full generalization"),
+            ("11", "C", "Documentation writing — Markdown YAML frontmatter",    "P3 first introduction"),
+            ("12", "C", "Data processing — JSON meta object application",       "P3 JSON variant"),
+            ("13", "C", "Code engineering — Python module docstring Meta",      "P3 Python variant"),
+            ("14", "C", "Project management — P1 + P2 + P3 combined",          "Three-rule validation"),
+            ("15", "C", "Comprehensive wrap-up — P3 across all file types",     "P3 full generalization"),
+            ("16", "D", "Documentation writing — P4 backup first introduction", "P4 first introduction"),
+            ("17", "D", "Data processing — P4 backup for data files",           "P4 consolidation"),
+            ("18", "D", "Code engineering — P4 backup for all file types",      "P4 cross-domain transfer"),
+            ("19", "D", "Project management — P1 + P2 + P4 combined",          "Four-rule validation"),
+            ("20", "D", "Comprehensive wrap-up — P4 full generalization",       "P4 full generalization"),
+            ("21", "E", "Documentation writing — P5 done.log introduction",     "P5 first introduction"),
+            ("22", "E", "Project management — P5 append-not-overwrite",         "P5 + P1 + P2 combined"),
+            ("23", "E", "Data processing — P5 cross-domain generalization",     "P5 transfer"),
+            ("24", "E", "Code engineering — P1 + P3 + P5 combined",            "Five-rule synthesis"),
+            ("25", "E", "Comprehensive wrap-up — P1–P5 all rules combined",     "Full five-rule test"),
+            ("26", "F", "Sprint 10 code engineering — all P1–P5 rules",         "Zero-hint exam (domain 1)"),
+            ("27", "F", "Sprint 10 technical documentation — all P1–P5 rules",  "Zero-hint exam (domain 2)"),
+            ("28", "F", "Sprint 10 data processing and reporting — all P1–P5",  "Zero-hint exam (domain 3)"),
+            ("29", "F", "Sprint 10 project management — all P1–P5 rules",       "Zero-hint exam (domain 4)"),
+            ("30", "F", "Sprint 10 final benchmark challenge — all P1–P5 rules","Ultimate compliance exam"),
+        ],
+        col_widths=[0.45, 0.45, 3.2, 2.1],
+    )
+    doc.add_paragraph()
 
     add_para(doc, "Example — Arc A (Day 01):", bold=True)
     add_bullet(doc, "r1: Ask the agent to organize meeting notes into JSON. "
@@ -223,9 +275,10 @@ def build_report():
                "+08:00 offset — e.g. 2026-03-16T09:30:00+08:00'", level=1)
     add_bullet(doc, "r2: Multiple-choice question testing conceptual understanding of P1.", level=1)
     add_bullet(doc, "r3: Another hands-on task — still testing P1 but in a different context.", level=1)
-    add_para(doc, "Day 02 (Arc A): Switches to a completely different work domain (data processing) "
-             "and tests P1 again — but this time the feedback does not explain P1. "
-             "The agent must remember it on its own.")
+    add_para(doc, "By Day 05 (end of Arc A), the agent has encountered P1 in five completely "
+             "different work domains (standup notes, milestone reports, API logs, code docs, "
+             "sprint reviews). Arc B then introduces P2 on top of this foundation, and so on "
+             "cumulatively through Day 30.")
 
     # ── Section 4 ────────────────────────────────────────────────────────────
     set_heading(doc, "4. Two Question Types: Complementary by Design", 1)
@@ -472,10 +525,11 @@ def build_report():
 
     set_heading(doc, "Pattern 5: Zero-Hint Final Exam", 2)
     add_para(doc,
-        "Arc F (days 11–12 in the small version, days 29–30 in the full version) removes "
-        "all hint-bearing feedback. The incorrect branch of feedback only identifies "
-        "what went wrong, not how to fix it. This validates true internalization: "
-        "the agent must know the rules from memory or weights, not from in-context clues.")
+        "Arc F (Days 26–30) removes all hint-bearing feedback. The incorrect branch of "
+        "feedback only identifies what went wrong, not how to fix it. After 25 days of "
+        "cumulative feedback exposure, the agent must know all five rules from memory or "
+        "weights, not from in-context clues. Day 30 ('Sprint 10 final benchmark challenge') "
+        "is the ultimate exam: all five rules, hardest task complexity, zero guidance.")
 
     # ── Section 9 ────────────────────────────────────────────────────────────
     set_heading(doc, "9. Implications for Training Data Generation", 1)
@@ -530,7 +584,7 @@ def build_report():
     hr.alignment = WD_ALIGN_PARAGRAPH.CENTER
     note = doc.add_paragraph(
         "Source: Analysis of MetaClaw repository at github.com/TinaZhang66/MetaClaw. "
-        "All code references are from benchmark/src/ and benchmark/data/metaclaw-bench-small/."
+        "All code references are from benchmark/src/ and benchmark/data/metaclaw-bench/."
     )
     note.alignment = WD_ALIGN_PARAGRAPH.CENTER
     note.runs[0].font.size = Pt(9)
